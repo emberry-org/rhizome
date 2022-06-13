@@ -1,25 +1,65 @@
 mod certs;
+mod control_channel;
+mod rendezvous;
 mod settings;
-pub use settings::Args;
 #[cfg(feature = "certgen")]
 pub use certs::regenerate_certs;
+pub use settings::Args;
 
 use certs::{load_certs, load_private_key};
-use std::io::{self, ErrorKind, Write};
-use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::TcpListener;
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::{path::PathBuf, sync::Arc};
+use tokio::net::{TcpListener, UdpSocket};
+use tokio::select;
 use tokio_rustls::{rustls, TlsAcceptor};
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let addr = format!("0.0.0.0:{}", args.tls_port);
+    // Configure the TlsAcceptor and bind the TcpListener
+    let (tcp, tls) = configure_tls(args.tls_port, args.cert, args.key).await?;
+
+    // Configure and bind the udp socket
+    let udp = configue_udp(args.udp_port).await?;
+    let mut matchmap: HashMap<[u8; 64], SocketAddr> = Default::default();
+    let mut udp_buff = [0u8; 64];
+
+    // Prepare a long-running future stream to accept and serve clients.
+    loop {
+        println!("awaiting new client");
+        let acceptor = tls.clone(); // We need a new Acceptor for each client because of TLS connection state
+        select! {
+            Ok(socket) = tcp.accept() => {
+                tokio::spawn(control_channel::handle(socket, acceptor)); // Spawn tokio task to handle tls control channel
+            }
+            Ok((size, addr)) = udp.recv_from(&mut udp_buff) => {
+                if size != 64 { continue; }
+                rendezvous::handle(&udp, &mut matchmap, &udp_buff, addr).await?; // Handle rendezvous service directly since updates to matchmap should be atomic
+            }
+        }
+    }
+}
+
+#[inline]
+async fn configue_udp(
+    udp_port: u16,
+) -> Result<UdpSocket, Box<dyn std::error::Error + Send + Sync>> {
+    let socket = UdpSocket::bind(("0.0.0.0", udp_port)).await?;
+    Ok(socket)
+}
+
+async fn configure_tls(
+    tls_port: u16,
+    cert: PathBuf,
+    key: PathBuf,
+) -> Result<(TcpListener, TlsAcceptor), Box<dyn std::error::Error + Send + Sync>> {
+    let addr = format!("0.0.0.0:{}", tls_port);
     // Build TLS configuration.
     let tls_cfg = {
         // Load public certificate.
-        let certs = load_certs(args.cert)?;
+        let certs = load_certs(cert)?;
         // Load private key.
-        let key = load_private_key(args.key)?;
+        let key = load_private_key(key)?;
 
         let cfg = rustls::ServerConfig::builder()
             .with_safe_defaults() // Only allow safe TLS configurations
@@ -32,46 +72,6 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
     let tcp = TcpListener::bind(&addr).await?;
     // Create Tokio specific TlsAcceptor to handle requests
     let tls_acceptor = TlsAcceptor::from(tls_cfg);
-    // Prepare a long-running future stream to accept and serve clients.
-    loop {
-        println!("awaiting new client");
-        let acceptor = tls_acceptor.clone(); // We need a new Acceptor for each client because of TLS connection state
-        let (socket, _) = tcp.accept().await?; // Accept TCP client
 
-        // Create future for handleing TLS handshake
-        let fut = async move {
-            let mut tls = acceptor.accept(socket).await?; // Perform TLS Handshake
-            println!("tls established");
-
-            // ---------------- Demo specific payload starts here ----------------
-            // read stream until 0x00 occurs then repeat the exact same sequence to the client (echo)
-            let mut buf_tls = BufReader::new(&mut tls);
-            let mut buf = vec![];
-
-            match buf_tls.read_until(0, &mut buf).await {
-                Ok(_) => (),
-                Err(err) => {
-                    if err.kind() == ErrorKind::ConnectionReset {
-                        println!("connection closed");
-                        return io::Result::Ok(()); // Return OK on Connection reset
-                    } else {
-                        return Err(err);
-                    }
-                }
-            }
-            tls.write_all(&buf).await?;
-            std::io::stdout().write_all(&buf)?; // Write echoed message to stdout
-                                                // ---------------- Demo specific payload ends here ----------------
-
-            io::Result::Ok(()) // Connection will be automatically closed when future exits
-        };
-
-        // Execute the future
-        tokio::spawn(async move {
-            if let Err(err) = fut.await {
-                eprintln!("{:?}", err); // Print error and keep going (Likely tls handshake failed/tcp connection failed)
-                                        // One may want to differentiate this error in production and take different actions
-            }
-        });
-    }
+    Ok((tcp, tls_acceptor))
 }

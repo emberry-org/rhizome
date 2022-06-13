@@ -15,6 +15,10 @@ pub struct Args {
     #[clap(short, long, default_value_t = 9999)]
     pub tls_port: u16,
 
+    /// Port for the udp holepunching service
+    #[clap(short, long, default_value_t = 10000)]
+    pub udp_port: u16,
+
     /// Deletes existing certificates, generates new ones and exits the program.
     #[clap(short = 'g', long)]
     pub cert_gen: bool,
@@ -35,4 +39,8 @@ pub struct Args {
     /// Port for the tls control connection
     #[clap(short, long, default_value_t = 9999)]
     pub tls_port: u16,
+
+    /// Port for the udp holepunching service
+    #[clap(short, long, default_value_t = 10000)]
+    pub udp_port: u16,
 }
