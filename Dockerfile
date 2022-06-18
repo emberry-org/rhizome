@@ -2,7 +2,7 @@ FROM ubuntu
 # open tcp/tls port
 EXPOSE 9999
 # open udp port
-EXPOSE 10000
+EXPOSE 10000/udp
 
 # Copy rhizome binary
 COPY target/release/rhizome /usr/local/bin/rhizome
