@@ -16,8 +16,6 @@
 <div align="center">
     <a href="#development">Development</a>
     ·
-    <a href="#credits">Credits</a>
-    ·
     <a href="#license">License</a>
 </div>
     
@@ -34,25 +32,6 @@ To run Rhizome for testing use the following command :
 ```
 $ cargo run -- <cert> <key> <tls_port> <udp_port>
 ```
-
-<br>
-
-<br>
-
-<h2 align="left">
-  <samp>
-    <b>Credits</b>
-  </samp>
-</h2>
-
-* Special Thanks to :heart: for this Awesome Readme Format!
-    * [Saimooedits](https://github.com/saimoomedits)
-
-<br>
-
-* Without these :sparkles: Projects this App wouldn't have been possible!
-    * [Tauri](https://github.com/tauri-apps/tauri) - Tauri
-    * [Svelte](https://github.com/sveltejs/svelte) - Svelte Framework
 
 <br>
 
