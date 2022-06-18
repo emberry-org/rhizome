@@ -32,7 +32,10 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
                 tokio::spawn(control_channel::handle(socket, acceptor)); // Spawn tokio task to handle tls control channel
             }
             Ok((size, addr)) = udp.recv_from(&mut udp_buff) => {
-                if size != 64 { continue; }
+                if size != 64 {
+                    eprintln!("udp recv {} bytes from {}", size, addr);
+                    continue;
+                }
                 rendezvous::handle(&udp, &mut matchmap, &udp_buff, addr).await?; // Handle rendezvous service directly since updates to matchmap should be atomic
             }
         }
