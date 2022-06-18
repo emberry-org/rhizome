@@ -7,9 +7,17 @@ use tokio_rustls::TlsAcceptor;
 pub async fn handle(socket: (TcpStream, SocketAddr), acceptor: TlsAcceptor) -> io::Result<()> {
     let stream = socket.0;
 
-    // Create future for handleing TLS handshake
-    let mut tls = acceptor.accept(stream).await?; // Perform TLS Handshake
-    println!("tls established");
+    // perform TLS handshake
+    let mut tls = match acceptor.accept(stream).await {
+        Ok(tls) => {
+            println!("tls established: {}", socket.1);
+            tls
+        }
+        Err(e) => {
+            eprintln!("tls handshake failed at {} with {}", socket.1, e);
+            return Err(e);
+        }
+    };
 
     // ---------------- Demo specific payload starts here ----------------
     // read stream until 0x00 occurs then repeat the exact same sequence to the client (echo)
@@ -20,7 +28,7 @@ pub async fn handle(socket: (TcpStream, SocketAddr), acceptor: TlsAcceptor) -> i
         Ok(_) => (),
         Err(err) => {
             if err.kind() == ErrorKind::ConnectionReset {
-                println!("connection closed");
+                eprintln!("connection reset: {}", socket.1);
                 return Ok(()); // Return OK on Connection reset
             } else {
                 return Err(err);

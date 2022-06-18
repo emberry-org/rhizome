@@ -26,7 +26,6 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
 
     // Prepare a long-running future stream to accept and serve clients.
     loop {
-        println!("awaiting new client");
         let acceptor = tls.clone(); // We need a new Acceptor for each client because of TLS connection state
         select! {
             Ok(socket) = tcp.accept() => {
