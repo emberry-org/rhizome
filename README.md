@@ -1,6 +1,6 @@
 <h1 align="center">
     <div align="center">
-        <img width=140 src="https://github.com/emberry-org/rhizome/blob/main/.github/assets/rhizome-logo.png"> 
+        <img width=140 src="https://github.com/emberry-org/rhizome/blob/main/.github/assets/logo.png"> 
     </div>
     <a href="https://github.com/emberry-org/rhizome/actions/workflows/tests.yml"><img src="https://github.com/emberry-org/rhizome/actions/workflows/tests.yml/badge.svg" height=20 align="right" /></a>
     <a href="https://github.com/emberry-org/rhizome/actions/workflows/audit.yml"><img src="https://github.com/emberry-org/rhizome/actions/workflows/audit.yml/badge.svg" height=20 align="right" /></a>
