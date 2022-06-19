@@ -33,6 +33,12 @@ To run Rhizome for testing use the following command :
 $ cargo run -- <cert> <key> <tls_port> <udp_port>
 ```
 
+It is also possible to run Rhizome using Docker
+To do so simply run :
+```
+$ ./docker_run.sh
+```
+Using the docker setup requires a X509Certificate as ``server.crt`` and the corresponding PKCS8 Private key as ``server.key``
 <br>
 
 <br>
