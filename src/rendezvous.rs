@@ -15,7 +15,7 @@ pub async fn handle(
 
         make_match(socket, addr, other).await
     } else {
-        println!("{} wants room at {:x?}", addr, &packet);
+        println!("{} wants room at {}", addr, String::from_utf8_lossy(packet));
         
         matchmap.insert(*packet, addr);
         Ok(())
