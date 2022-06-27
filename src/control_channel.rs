@@ -1,45 +1,35 @@
-use std::io::{self, ErrorKind, Write};
+use std::io::{self, ErrorKind, Write, BufWriter};
 use std::net::SocketAddr;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 pub async fn handle(socket: (TcpStream, SocketAddr), acceptor: TlsAcceptor) -> io::Result<()> {
-    let stream = socket.0;
 
+    let mut _tls = rhizome_handshake(socket.0, &socket.1, acceptor).await?;
+    println!("tls end: {}", socket.1);
+    Ok(())
+}
+
+async fn rhizome_handshake<T>(stream: T, addr: &SocketAddr, acceptor: TlsAcceptor) -> io::Result<BufReader<TlsStream<T>>>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
     // perform TLS handshake
     let mut tls = match acceptor.accept(stream).await {
         Ok(tls) => {
-            println!("tls established: {}", socket.1);
+            println!("tls established: {}", addr);
             tls
         }
         Err(e) => {
-            eprintln!("tls handshake failed at {} with {}", socket.1, e);
+            eprintln!("tls handshake failed at {} with {}", addr, e);
             return Err(e);
         }
     };
 
-    // ---------------- Demo specific payload starts here ----------------
-    // read stream until 0x00 occurs then repeat the exact same sequence to the client (echo)
-    let mut buf_tls = BufReader::new(&mut tls);
-    let mut buf = vec![];
-
-    match buf_tls.read_until(0, &mut buf).await {
-        Ok(_) => (),
-        Err(err) => {
-            if err.kind() == ErrorKind::ConnectionReset {
-                eprintln!("connection reset: {}", socket.1);
-                return Ok(()); // Return OK on Connection reset
-            } else {
-                return Err(err);
-            }
-        }
-    }
-
-    tls.write_all(&buf).await?;
-    std::io::stdout().write_all(&buf)?; // Write echoed message to stdout
-
-    // ---------------- Demo specific payload ends here ----------------
-
-    Ok(())
+    // Send rhizome hello
+    tls.write_all(concat!("rhizome v", env!("CARGO_PKG_VERSION"), '\n').as_bytes())
+        .await?;
+    
+    Ok(BufReader::new(tls))
 }
