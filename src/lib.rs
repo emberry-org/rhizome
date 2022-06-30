@@ -12,10 +12,13 @@ use certs::{load_certs, load_private_key};
 use err::eprinterr_with;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::time::Duration;
 use std::{path::PathBuf, sync::Arc};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::select;
 use tokio_rustls::{rustls, TlsAcceptor};
+
+pub const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

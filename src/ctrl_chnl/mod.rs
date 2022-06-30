@@ -15,12 +15,10 @@ use self::request::Request;
 pub async fn handle(socket: (TcpStream, SocketAddr), acceptor: TlsAcceptor) -> io::Result<()> {
     let mut tls = rhizome_handshake(socket.0, &socket.1, acceptor).await?;
 
-    let _user = timeout(Duration::from_secs(10), authenticate(&mut tls)).await??;
+    let _user = timeout(crate::TIMEOUT, authenticate(&mut tls)).await??;
 
-    let mut last_interaction;
     // Repeatedly handle requests
     loop {
-        last_interaction = Instant::now();
         match recv_req(&mut tls).await? {
             Request::Heartbeat => continue,
             Request::Shutdown => return Ok(()),
