@@ -1,5 +1,5 @@
 mod certs;
-mod control_channel;
+mod ctrl_chnl;
 mod err;
 mod rendezvous;
 mod settings;
@@ -32,7 +32,7 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
         let acceptor = tls.clone(); // We need a new Acceptor for each client because of TLS connection state
         select! {
             Ok(socket) = tcp.accept() => {
-                tokio::spawn(eprinterr_with(control_channel::handle(socket, acceptor), "control_channel")); // Spawn tokio task to handle tls control channel
+                tokio::spawn(eprinterr_with(ctrl_chnl::handle(socket, acceptor), "control_channel")); // Spawn tokio task to handle tls control channel
             }
             Ok((size, addr)) = udp.recv_from(&mut udp_buff) => {
                 if size != 64 {
