@@ -1,12 +1,18 @@
 use std::io;
 use std::net::SocketAddr;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, AsyncReadExt};
 use tokio::net::TcpStream;
+use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
+use crate::user::User;
+
 pub async fn handle(socket: (TcpStream, SocketAddr), acceptor: TlsAcceptor) -> io::Result<()> {
-    let mut _tls = rhizome_handshake(socket.0, &socket.1, acceptor).await?;
-    println!("tls end: {}", socket.1);
+    let mut tls = rhizome_handshake(socket.0, &socket.1, acceptor).await?;
+    
+    let _user = timeout(Duration::from_secs(10), authenticate(&mut tls)).await??;
+    
     Ok(())
 }
 
@@ -35,4 +41,13 @@ where
         .await?;
 
     Ok(BufReader::new(tls))
+}
+
+async fn authenticate<T>(tls: &mut BufReader<TlsStream<T>>) -> io::Result<User>
+where T: AsyncRead + AsyncWrite + Unpin
+{
+    let mut buf = [0u8;32];
+    tls.read_exact(&mut buf).await?;
+
+    Ok(User::Authenticated(buf))
 }

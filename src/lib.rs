@@ -1,14 +1,15 @@
 mod certs;
 mod control_channel;
+mod err;
 mod rendezvous;
 mod settings;
-mod err;
+mod user;
 #[cfg(feature = "certgen")]
 pub use certs::regenerate_certs;
 pub use settings::Args;
 
-use err::eprinterr_with;
 use certs::{load_certs, load_private_key};
+use err::eprinterr_with;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::{path::PathBuf, sync::Arc};
