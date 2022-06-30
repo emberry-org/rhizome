@@ -1,8 +1,13 @@
-use std::{collections::HashMap, io, net::SocketAddr};
+use std::{collections::HashMap, io, net::SocketAddr, time::Instant};
 
 use tokio::net::UdpSocket;
 
-type MatchMap = HashMap<[u8; 64], SocketAddr>;
+type MatchMap = HashMap<[u8; 64], RoomStatus>;
+
+pub enum RoomStatus {
+    Idle(Instant),
+    Waiting(SocketAddr, Instant),
+}
 
 pub async fn handle(
     socket: &UdpSocket,
@@ -10,15 +15,31 @@ pub async fn handle(
     packet: &[u8; 64],
     addr: SocketAddr,
 ) -> io::Result<()> {
-    if let Some(other) = matchmap.remove(packet) {
-        println!("Matching {} and {}", addr, other);
+    if let Some(peer) = matchmap.remove(packet) {
+        match peer {
+            RoomStatus::Waiting(peer_addr, timeout) => {
+                check_timeout(timeout, "peer was waiting to long")?;
+                println!("Matching {} and {}", addr, peer_addr);
+                make_match(socket, addr, peer_addr).await
+            }
+            RoomStatus::Idle(timeout) => {
+                check_timeout(timeout, "room idle to long")?;
+                println!("{} waits in room {}", addr, String::from_utf8_lossy(packet));
 
-        make_match(socket, addr, other).await
+                matchmap.insert(*packet, RoomStatus::Waiting(addr, Instant::now()));
+                Ok(())
+            }
+        }
     } else {
-        println!("{} wants room at {}", addr, String::from_utf8_lossy(packet));
-        
-        matchmap.insert(*packet, addr);
+        Err(io::Error::new(io::ErrorKind::InvalidData, "room is closed"))
+    }
+}
+
+fn check_timeout(instant: Instant, msg: &str) -> io::Result<()> {
+    if instant.elapsed() > crate::TIMEOUT {
         Ok(())
+    } else {
+        Err(io::Error::new(io::ErrorKind::TimedOut, msg))
     }
 }
 

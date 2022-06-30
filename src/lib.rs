@@ -10,8 +10,6 @@ pub use settings::Args;
 
 use certs::{load_certs, load_private_key};
 use err::eprinterr_with;
-use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::time::Duration;
 use std::{path::PathBuf, sync::Arc};
 use tokio::net::{TcpListener, UdpSocket};
@@ -27,7 +25,7 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
 
     // Configure and bind the udp socket
     let udp = configue_udp(args.udp_port).await?;
-    let mut matchmap: HashMap<[u8; 64], SocketAddr> = Default::default();
+    let mut matchmap = Default::default();
     let mut udp_buff = [0u8; 64];
 
     // Prepare a long-running future stream to accept and serve clients.
