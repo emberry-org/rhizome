@@ -1,6 +1,8 @@
+mod request;
+
 use std::io;
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
@@ -8,12 +10,23 @@ use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 use crate::user::User;
 
+use self::request::Request;
+
 pub async fn handle(socket: (TcpStream, SocketAddr), acceptor: TlsAcceptor) -> io::Result<()> {
     let mut tls = rhizome_handshake(socket.0, &socket.1, acceptor).await?;
 
     let _user = timeout(Duration::from_secs(10), authenticate(&mut tls)).await??;
 
-    Ok(())
+    let mut last_interaction;
+    // Repeatedly handle requests
+    loop {
+        last_interaction = Instant::now();
+        match recv_req(&mut tls).await? {
+            Request::Heartbeat => continue,
+            Request::Shutdown => return Ok(()),
+            Request::RoomRequest(_) => todo!(),
+        }
+    }
 }
 
 async fn rhizome_handshake<T>(
@@ -51,4 +64,11 @@ where
     tls.read_exact(&mut buf).await?;
 
     Ok(User::Authenticated(buf))
+}
+
+async fn recv_req<T>(tls: &mut BufReader<TlsStream<T>>) -> io::Result<Request>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    Ok(Request::Shutdown)
 }
