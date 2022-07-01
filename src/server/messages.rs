@@ -1,4 +1,4 @@
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, oneshot};
 
 use crate::server::user::User;
 
@@ -7,6 +7,10 @@ pub enum ServerMessage {
 }
 
 pub enum SocketMessage {
+    RoomRequest {
+        receiver: User,
+        success: oneshot::Sender<Option<Sender<ServerMessage>>>,
+    },
     SubscribeUser {
         user: User,
         tx: Sender<ServerMessage>,

@@ -34,7 +34,7 @@ pub async fn handle(
             )
         })?;
 
-    handle_messges(&mut tls, &mut rx).await?;
+    handle_messges(&mut tls, &mut rx, &com).await?;
 
     com.send(SocketMessage::Disconnect { user })
         .await
@@ -51,6 +51,7 @@ pub async fn handle(
 async fn handle_messges<T>(
     tls: &mut BufReader<TlsStream<T>>,
     rx: &mut Receiver<ServerMessage>,
+    com: &Sender<SocketMessage>,
 ) -> io::Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
@@ -65,14 +66,28 @@ where
                 match timeout(crate::TIMEOUT, recv_req(tls, size)).await?? {
                     Request::Heartbeat => continue,
                     Request::Shutdown => return Ok(()),
-                    Request::RoomRequest(_) => todo!(),
+                    Request::RoomRequest(user) => handle_room_request(user, tls, com).await?,
                 }
             }
             Some(msg) = rx.recv() => {
+                // handle messages from other server parts trying to speak with you
                 todo!();
             }
         }
     }
+}
+
+async fn handle_room_request<T>(
+    user: User,
+    tls: &mut BufReader<TlsStream<T>>,
+    com: &Sender<SocketMessage>,
+) -> io::Result<()>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    // ask server about route
+    // return route via tls to client
+    todo!();
 }
 
 async fn rhizome_handshake<T>(
@@ -116,5 +131,6 @@ async fn recv_req<T>(tls: &mut BufReader<TlsStream<T>>, size: u32) -> io::Result
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
+    // read the tls strea for <size> bytes and parse request
     todo!()
 }

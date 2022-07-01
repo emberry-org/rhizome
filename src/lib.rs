@@ -100,5 +100,11 @@ fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
         SocketMessage::Disconnect { user } => {
             state.usrs.remove(&user.key);
         }
+        SocketMessage::RoomRequest { receiver, success } => {
+            let route = state.usrs.get(&receiver.key);
+            if success.send(route.cloned()).is_err() {
+                eprintln!("RoomRequest response could not be sent user disconnected");
+            }
+        }
     }
 }
