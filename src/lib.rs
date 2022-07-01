@@ -2,10 +2,11 @@ mod certs;
 mod ctrl_chnl;
 mod err;
 mod rendezvous;
+mod server;
 mod settings;
-mod user;
 #[cfg(feature = "certgen")]
 pub use certs::regenerate_certs;
+use server::state::State;
 pub use settings::Args;
 
 use certs::{load_certs, load_private_key};
@@ -25,7 +26,10 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
 
     // Configure and bind the udp socket
     let udp = configue_udp(args.udp_port).await?;
-    let mut matchmap = Default::default();
+    let mut state = State {
+        usrs: Default::default(),
+        rooms: Default::default(),
+    };
     let mut udp_buff = [0u8; 64];
 
     // Prepare a long-running future stream to accept and serve clients.
@@ -40,7 +44,7 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
                     eprintln!("udp recv {} bytes from {}", size, addr);
                     continue;
                 }
-                rendezvous::handle(&udp, &mut matchmap, &udp_buff, addr).await?; // Handle rendezvous service directly since updates to matchmap should be atomic
+                rendezvous::handle(&udp, &mut state.rooms, &udp_buff, addr).await?; // Handle rendezvous service directly since updates to matchmap should be atomic
             }
         }
     }

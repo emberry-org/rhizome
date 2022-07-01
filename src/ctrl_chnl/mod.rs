@@ -1,14 +1,14 @@
 mod request;
 
+use crate::server::messages::{ServerMessage, SocketMessage};
 use std::io;
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
-use crate::user::User;
+use crate::server::user::User;
 
 use self::request::Request;
 
@@ -61,7 +61,7 @@ where
     let mut buf = [0u8; 32];
     tls.read_exact(&mut buf).await?;
 
-    Ok(User::Authenticated(buf))
+    Ok(User { key: buf })
 }
 
 async fn recv_req<T>(tls: &mut BufReader<TlsStream<T>>) -> io::Result<Request>

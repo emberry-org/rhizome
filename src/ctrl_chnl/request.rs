@@ -1,4 +1,4 @@
-use crate::user::User;
+use crate::server::user::User;
 
 pub enum Request{
     RoomRequest(User),
