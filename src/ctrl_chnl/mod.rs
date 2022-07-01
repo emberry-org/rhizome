@@ -5,6 +5,8 @@ use std::io;
 use std::net::SocketAddr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
+use tokio::select;
+use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
@@ -12,17 +14,63 @@ use crate::server::user::User;
 
 use self::request::Request;
 
-pub async fn handle(socket: (TcpStream, SocketAddr), acceptor: TlsAcceptor) -> io::Result<()> {
+pub async fn handle(
+    socket: (TcpStream, SocketAddr),
+    acceptor: TlsAcceptor,
+    com: Sender<SocketMessage>,
+) -> io::Result<()> {
     let mut tls = rhizome_handshake(socket.0, &socket.1, acceptor).await?;
 
-    let _user = timeout(crate::TIMEOUT, authenticate(&mut tls)).await??;
+    let user = timeout(crate::TIMEOUT, authenticate(&mut tls)).await??;
+
+    let (tx, mut rx) = mpsc::channel(100);
+
+    com.send(SocketMessage::SubscribeUser { user, tx })
+        .await
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "Internal communication channel broken",
+            )
+        })?;
+
+    handle_messges(&mut tls, &mut rx).await?;
+
+    com.send(SocketMessage::Disconnect { user })
+        .await
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "Internal communication channel broken",
+            )
+        })?;
+
+    Ok(())
+}
+
+async fn handle_messges<T>(
+    tls: &mut BufReader<TlsStream<T>>,
+    rx: &mut Receiver<ServerMessage>,
+) -> io::Result<()>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut buf = [0u8; 4]; // message header buffer
 
     // Repeatedly handle requests
     loop {
-        match recv_req(&mut tls).await? {
-            Request::Heartbeat => continue,
-            Request::Shutdown => return Ok(()),
-            Request::RoomRequest(_) => todo!(),
+        select! {
+            Ok(_) = tls.read_exact(&mut buf) => {
+                let size = u32::from_be_bytes(buf);
+                match timeout(crate::TIMEOUT, recv_req(tls, size)).await?? {
+                    Request::Heartbeat => continue,
+                    Request::Shutdown => return Ok(()),
+                    Request::RoomRequest(_) => todo!(),
+                }
+            }
+            Some(msg) = rx.recv() => {
+                todo!();
+            }
         }
     }
 }
@@ -64,9 +112,9 @@ where
     Ok(User { key: buf })
 }
 
-async fn recv_req<T>(tls: &mut BufReader<TlsStream<T>>) -> io::Result<Request>
+async fn recv_req<T>(tls: &mut BufReader<TlsStream<T>>, size: u32) -> io::Result<Request>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    Ok(Request::Shutdown)
+    todo!()
 }

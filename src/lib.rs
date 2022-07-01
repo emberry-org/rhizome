@@ -6,6 +6,7 @@ mod server;
 mod settings;
 #[cfg(feature = "certgen")]
 pub use certs::regenerate_certs;
+use server::messages::SocketMessage;
 use server::state::State;
 pub use settings::Args;
 
@@ -15,6 +16,7 @@ use std::time::Duration;
 use std::{path::PathBuf, sync::Arc};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::select;
+use tokio::sync::mpsc;
 use tokio_rustls::{rustls, TlsAcceptor};
 
 pub const TIMEOUT: Duration = Duration::from_secs(10);
@@ -32,12 +34,13 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
     };
     let mut udp_buff = [0u8; 64];
 
+    let (tx, mut rx) = mpsc::channel::<SocketMessage>(100);
     // Prepare a long-running future stream to accept and serve clients.
     loop {
         let acceptor = tls.clone(); // We need a new Acceptor for each client because of TLS connection state
         select! {
             Ok(socket) = tcp.accept() => {
-                tokio::spawn(eprinterr_with(ctrl_chnl::handle(socket, acceptor), "control_channel")); // Spawn tokio task to handle tls control channel
+                tokio::spawn(eprinterr_with(ctrl_chnl::handle(socket, acceptor, tx.clone()), "control_channel")); // Spawn tokio task to handle tls control channel
             }
             Ok((size, addr)) = udp.recv_from(&mut udp_buff) => {
                 if size != 64 {
@@ -45,6 +48,9 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
                     continue;
                 }
                 rendezvous::handle(&udp, &mut state.rooms, &udp_buff, addr).await?; // Handle rendezvous service directly since updates to matchmap should be atomic
+            }
+            Some(msg) = rx.recv() => {
+                handle_sock_msg(msg, &mut state)
             }
         }
     }
@@ -84,4 +90,15 @@ async fn configure_tls(
     let tls_acceptor = TlsAcceptor::from(tls_cfg);
 
     Ok((tcp, tls_acceptor))
+}
+
+fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
+    match msg {
+        SocketMessage::SubscribeUser { user, tx } => {
+            state.usrs.insert(user.key, tx);
+        }
+        SocketMessage::Disconnect { user } => {
+            state.usrs.remove(&user.key);
+        }
+    }
 }

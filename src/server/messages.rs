@@ -7,7 +7,11 @@ pub enum ServerMessage {
 }
 
 pub enum SocketMessage {
-    RoomRequest { sender: User, receiver: User },
-    SubscribeUser { user: User, tx: Sender<ServerMessage> },
-    Disconnect { user: User },
+    SubscribeUser {
+        user: User,
+        tx: Sender<ServerMessage>,
+    },
+    Disconnect {
+        user: User,
+    },
 }
