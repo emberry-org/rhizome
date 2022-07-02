@@ -14,6 +14,7 @@ use crate::server::user::User;
 
 use self::request::Request;
 
+/// Handle an incoming connection.
 pub async fn handle(
     socket: (TcpStream, SocketAddr),
     acceptor: TlsAcceptor,
@@ -34,7 +35,7 @@ pub async fn handle(
             )
         })?;
 
-    handle_messges(&mut tls, &mut rx).await?;
+    handle_messages(&mut tls, &mut rx).await?;
 
     com.send(SocketMessage::Disconnect { user })
         .await
@@ -48,7 +49,8 @@ pub async fn handle(
     Ok(())
 }
 
-async fn handle_messges<T>(
+/// Handle any incoming messages over the TLS.
+async fn handle_messages<T>(
     tls: &mut BufReader<TlsStream<T>>,
     rx: &mut Receiver<ServerMessage>,
 ) -> io::Result<()>
@@ -75,6 +77,9 @@ where
     }
 }
 
+/// Perform a handshake and send the client a hello message.
+/// 
+/// Hello message : ```rhizome v<CARGO_PKG_VERSION>\n```
 async fn rhizome_handshake<T>(
     stream: T,
     addr: &SocketAddr,
@@ -102,6 +107,7 @@ where
     Ok(BufReader::new(tls))
 }
 
+/// Authenticate a user by reading their public key from the TLS channel.
 async fn authenticate<T>(tls: &mut BufReader<TlsStream<T>>) -> io::Result<User>
 where
     T: AsyncRead + AsyncWrite + Unpin,
