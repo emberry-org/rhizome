@@ -1,5 +1,7 @@
 mod request;
+mod response;
 
+use crate::ctrl_chnl::response::Response;
 use crate::server::messages::{ServerMessage, SocketMessage};
 use std::io;
 use std::net::SocketAddr;
@@ -7,6 +9,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::oneshot;
 use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
@@ -85,9 +88,32 @@ async fn handle_room_request<T>(
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    // ask server about route
-    // return route via tls to client
-    todo!();
+    let (tx, rx) = oneshot::channel();
+    com.send(SocketMessage::RoomRequest {
+        receiver: user,
+        success: tx,
+    })
+    .await
+    .map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            "Internal communication channel broken",
+        )
+    })?;
+
+    let route = rx.await.map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            "Internal communication channel broken",
+        )
+    })?;
+
+    match route {
+        None => Response::NoRoute(user).send_with(tls).await,
+        Some(route) => {
+            todo!("communicate room proposal")
+        },
+    }
 }
 
 async fn rhizome_handshake<T>(
