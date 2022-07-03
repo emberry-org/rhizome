@@ -1,5 +1,6 @@
 mod request;
 mod response;
+mod state;
 
 use crate::ctrl_chnl::response::Response;
 use crate::server::messages::{ServerMessage, SocketMessage};
@@ -16,6 +17,7 @@ use tokio_rustls::{server::TlsStream, TlsAcceptor};
 use crate::server::user::User;
 
 use self::request::Request;
+use self::state::State;
 
 pub async fn handle(
     socket: (TcpStream, SocketAddr),
@@ -24,10 +26,13 @@ pub async fn handle(
 ) -> io::Result<()> {
     let mut tls = rhizome_handshake(socket.0, &socket.1, acceptor).await?;
 
+    // Authenticate the user but only give crate::TIMEOUT time for this operation
     let user = timeout(crate::TIMEOUT, authenticate(&mut tls)).await??;
+    // Generate state and store the authenticated user
+    let state = State { user };
 
+    // Create channel for this user and push it to the main server map
     let (tx, mut rx) = mpsc::channel(100);
-
     com.send(SocketMessage::SubscribeUser { user, tx })
         .await
         .map_err(|_| {
@@ -37,8 +42,12 @@ pub async fn handle(
             )
         })?;
 
-    handle_messges(&mut tls, &mut rx, &com).await?;
+    // [!] From here on ensure the the function does not return before disconnect is not signaled to the server [!]
 
+    // write result in status and avoid returning from the function this way
+    let status = handle_messges(&state, &mut tls, &mut rx, &com).await;
+
+    // Remove the client from the map in case of disconnect
     com.send(SocketMessage::Disconnect { user })
         .await
         .map_err(|_| {
@@ -48,10 +57,12 @@ pub async fn handle(
             )
         })?;
 
-    Ok(())
+    // Return the status to get status indication
+    status
 }
 
 async fn handle_messges<T>(
+    state: &State,
     tls: &mut BufReader<TlsStream<T>>,
     rx: &mut Receiver<ServerMessage>,
     com: &Sender<SocketMessage>,
@@ -69,7 +80,7 @@ where
                 match timeout(crate::TIMEOUT, recv_req(tls, size)).await?? {
                     Request::Heartbeat => continue,
                     Request::Shutdown => return Ok(()),
-                    Request::RoomRequest(user) => handle_room_request(user, tls, com).await?,
+                    Request::RoomRequest(user) => handle_room_request(state, user, tls, com).await?,
                 }
             }
             Some(msg) = rx.recv() => {
@@ -81,6 +92,7 @@ where
 }
 
 async fn handle_room_request<T>(
+    state: &State,
     user: User,
     tls: &mut BufReader<TlsStream<T>>,
     com: &Sender<SocketMessage>,
@@ -88,6 +100,7 @@ async fn handle_room_request<T>(
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
+    // create response channel and request the route to the peer user
     let (tx, rx) = oneshot::channel();
     com.send(SocketMessage::RoomRequest {
         receiver: user,
@@ -101,6 +114,7 @@ where
         )
     })?;
 
+    // receive an option to a peer user (None if the other user is not connected)
     let route = rx.await.map_err(|_| {
         io::Error::new(
             io::ErrorKind::Other,
@@ -111,8 +125,18 @@ where
     match route {
         None => Response::NoRoute(user).send_with(tls).await,
         Some(route) => {
-            todo!("communicate room proposal")
-        },
+            match route
+                .send(ServerMessage::RoomProposal {
+                    sender: state.user,
+                    msg: None,
+                })
+                .await
+            {
+                Ok(()) => Response::HasRoute(user).send_with(tls).await,
+                // send no route if the receiver of the peer has been dropped by now (peer disconnected)
+                Err(_) => Response::NoRoute(user).send_with(tls).await,
+            }
+        }
     }
 }
 
