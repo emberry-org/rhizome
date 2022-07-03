@@ -32,7 +32,11 @@ pub async fn handle(
     // Create channel for this user and push it to the main server map
     let (tx, mut rx) = mpsc::channel(100);
     // Generate state and store the authenticated user
-    let state = State { user, com, tx: tx.clone()};
+    let state = State {
+        user,
+        com,
+        tx: tx.clone(),
+    };
     state
         .com
         .send(SocketMessage::SubscribeUser { user, tx })
@@ -87,9 +91,37 @@ where
                 }
             }
             Some(msg) = rx.recv() => {
+                match msg {
+                    ServerMessage::RoomProposal{ proposal } => handle_room_proposal(state, proposal, tls).await?,
+                    ServerMessage::ProposalResponse { room_id } => todo!("handle proposal response"),
+                }
             }
         }
     }
+}
+
+async fn handle_room_proposal<T>(
+    state: &State,
+    proposal: messages::RoomProposal,
+    tls: &mut BufReader<TlsStream<T>>,
+) -> io::Result<()>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    if let Err(err) = Response::WantsRoom(proposal.proposer, proposal.proposal)
+        .send_with(tls)
+        .await
+    {
+        proposal
+            .proposer_tx
+            .send(ServerMessage::ProposalResponse { room_id: None })
+            .await
+            .unwrap_or(());
+        return Err(err);
+    }
+
+    // send msg to tls await response and signal proposer about the result
+    todo!("ask UPC to generate room id and then forward that to proposer and tls client")
 }
 
 async fn handle_room_request<T>(

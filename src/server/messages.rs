@@ -10,6 +10,7 @@ pub struct RoomProposal {
 
 pub enum ServerMessage {
     RoomProposal { proposal: RoomProposal },
+    ProposalResponse { room_id: Option<[u8; 64]> },
 }
 
 pub enum SocketMessage {

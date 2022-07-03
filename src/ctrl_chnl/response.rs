@@ -9,6 +9,7 @@ use std::io::{self, ErrorKind};
 pub enum Response {
     HasRoute(User),
     NoRoute(User),
+    WantsRoom(User, Option<String>),
 }
 
 impl Response {
@@ -17,9 +18,7 @@ impl Response {
         T: AsyncRead + AsyncWrite + Unpin,
     {
         let mut buf = vec![];
-        match self {
-            Self::HasRoute(usr) | Self::NoRoute(usr) => todo!("packet serialization"),
-        };
+        todo!("packet serialization");
 
         #[cfg(feature = "debug")]
         println!("sent msg");
