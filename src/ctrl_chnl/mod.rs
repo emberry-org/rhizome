@@ -28,12 +28,14 @@ pub async fn handle(
 
     // Authenticate the user but only give crate::TIMEOUT time for this operation
     let user = timeout(crate::TIMEOUT, authenticate(&mut tls)).await??;
-    // Generate state and store the authenticated user
-    let state = State { user };
 
     // Create channel for this user and push it to the main server map
     let (tx, mut rx) = mpsc::channel(100);
-    com.send(SocketMessage::SubscribeUser { user, tx })
+    // Generate state and store the authenticated user
+    let state = State { user, com, tx: tx.clone()};
+    state
+        .com
+        .send(SocketMessage::SubscribeUser { user, tx })
         .await
         .map_err(|_| {
             io::Error::new(
@@ -45,10 +47,12 @@ pub async fn handle(
     // [!] From here on ensure the the function does not return before disconnect is not signaled to the server [!]
 
     // write result in status and avoid returning from the function this way
-    let status = handle_messges(&state, &mut tls, &mut rx, &com).await;
+    let status = handle_messges(&state, &mut tls, &mut rx).await;
 
     // Remove the client from the map in case of disconnect
-    com.send(SocketMessage::Disconnect { user })
+    state
+        .com
+        .send(SocketMessage::Disconnect { user })
         .await
         .map_err(|_| {
             io::Error::new(
@@ -65,7 +69,6 @@ async fn handle_messges<T>(
     state: &State,
     tls: &mut BufReader<TlsStream<T>>,
     rx: &mut Receiver<ServerMessage>,
-    com: &Sender<SocketMessage>,
 ) -> io::Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
@@ -80,12 +83,10 @@ where
                 match timeout(crate::TIMEOUT, recv_req(tls, size)).await?? {
                     Request::Heartbeat => continue,
                     Request::Shutdown => return Ok(()),
-                    Request::RoomRequest(user) => handle_room_request(state, user, tls, com).await?,
+                    Request::RoomRequest(user) => handle_room_request(state, user, tls).await?,
                 }
             }
             Some(msg) = rx.recv() => {
-                // handle messages from other server parts trying to speak with you
-                todo!();
             }
         }
     }
@@ -95,24 +96,25 @@ async fn handle_room_request<T>(
     state: &State,
     user: User,
     tls: &mut BufReader<TlsStream<T>>,
-    com: &Sender<SocketMessage>,
 ) -> io::Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     // create response channel and request the route to the peer user
     let (tx, rx) = oneshot::channel();
-    com.send(SocketMessage::RoomRequest {
-        receiver: user,
-        success: tx,
-    })
-    .await
-    .map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            "Internal communication channel broken",
-        )
-    })?;
+    state
+        .com
+        .send(SocketMessage::RoomRequest {
+            receiver: user,
+            success: tx,
+        })
+        .await
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "Internal communication channel broken",
+            )
+        })?;
 
     // receive an option to a peer user (None if the other user is not connected)
     let route = rx.await.map_err(|_| {

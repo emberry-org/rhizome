@@ -8,6 +8,8 @@ use crate::server::{
 pub struct State {
     /// Authenticated user for this instance
     pub user: User,
+    /// sender that sends socket messages to the server
+    pub com: Sender<SocketMessage>,
     /// sender that sends server messages to this instance
     pub tx: Sender<ServerMessage>,
 }
