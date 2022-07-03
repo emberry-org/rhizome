@@ -3,7 +3,7 @@ mod response;
 mod state;
 
 use crate::ctrl_chnl::response::Response;
-use crate::server::messages::{ServerMessage, SocketMessage};
+use crate::server::messages::{self, RoomProposal, ServerMessage, SocketMessage};
 use std::io;
 use std::net::SocketAddr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -127,8 +127,11 @@ where
         Some(route) => {
             match route
                 .send(ServerMessage::RoomProposal {
-                    sender: state.user,
-                    msg: None,
+                    proposal: RoomProposal {
+                        proposer: state.user,
+                        proposal: None,
+                        proposer_tx: state.tx.clone(),
+                    },
                 })
                 .await
             {

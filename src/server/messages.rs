@@ -2,8 +2,14 @@ use tokio::sync::{mpsc::Sender, oneshot};
 
 use crate::server::user::User;
 
+pub struct RoomProposal {
+    pub proposer: User,
+    pub proposal: Option<String>,
+    pub proposer_tx: Sender<ServerMessage>,
+}
+
 pub enum ServerMessage {
-    RoomProposal { sender: User, msg: Option<String> },
+    RoomProposal { proposal: RoomProposal },
 }
 
 pub enum SocketMessage {
