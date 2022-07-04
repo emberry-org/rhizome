@@ -1,5 +1,7 @@
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Copy)]
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct User {
     pub key: PubKey,
 }

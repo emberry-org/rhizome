@@ -87,7 +87,7 @@ where
                 match timeout(crate::TIMEOUT, recv_req(tls, size)).await?? {
                     Request::Heartbeat => continue,
                     Request::Shutdown => return Ok(()),
-                    Request::RoomRequest(user) => handle_room_request(state, user, tls).await?,
+                    Request::Room(user) => handle_room_request(state, user, tls).await?,
                 }
             }
             Some(msg) = rx.recv() => {

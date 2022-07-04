@@ -1,7 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use crate::server::user::User;
 
+#[derive(Serialize, Deserialize)]
 pub enum Request{
-    RoomRequest(User),
+    Room(User),
     Heartbeat,
     Shutdown,
 }
