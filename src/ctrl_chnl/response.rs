@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_rustls::server::TlsStream;
 
@@ -5,12 +6,12 @@ use crate::server::user::User;
 
 use std::io::{self, ErrorKind};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Response {
     HasRoute(User),
     NoRoute(User),
     WantsRoom(User, Option<String>),
-    AcceptedRoom(Option<[u8; 64]>)
+    AcceptedRoom(Option<[u8; 32]>)
 }
 
 impl Response {

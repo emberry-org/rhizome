@@ -2,7 +2,7 @@ use std::{collections::HashMap, io, net::SocketAddr, time::Instant};
 
 use tokio::net::UdpSocket;
 
-type MatchMap = HashMap<[u8; 64], RoomStatus>;
+type MatchMap = HashMap<[u8; 32], RoomStatus>;
 
 pub enum RoomStatus {
     Idle(Instant),
@@ -12,7 +12,7 @@ pub enum RoomStatus {
 pub async fn handle(
     socket: &UdpSocket,
     matchmap: &mut MatchMap,
-    packet: &[u8; 64],
+    packet: &[u8; 32],
     addr: SocketAddr,
 ) -> io::Result<()> {
     if let Some(peer) = matchmap.remove(packet) {

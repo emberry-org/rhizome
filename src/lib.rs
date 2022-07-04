@@ -34,7 +34,7 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
         usrs: Default::default(),
         rooms: Default::default(),
     };
-    let mut udp_buff = [0u8; 64];
+    let mut udp_buff = [0u8; 32];
 
     let (tx, mut rx) = mpsc::channel::<SocketMessage>(100);
     // Prepare a long-running future stream to accept and serve clients.
@@ -112,11 +112,11 @@ async fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
             proposer,
             recipient,
         } => {
-            let mut room_key: [u8; 64] = [0u8; 64];
+            let mut room_key = [0u8; 32];
 
-            loop{
+            loop {
                 thread_rng().fill_bytes(&mut room_key);
-                if ! state.rooms.contains_key(&room_key) {
+                if !state.rooms.contains_key(&room_key) {
                     break;
                 }
             }
@@ -130,9 +130,11 @@ async fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
             });
 
             let (recipient_result, proposer_result) = join!(recipient_fut, proposer_fut);
-        
-            if recipient_result.is_ok() || proposer_result.is_ok(){
-                state.rooms.insert(room_key, RoomStatus::Idle(Instant::now()));
+
+            if recipient_result.is_ok() || proposer_result.is_ok() {
+                state
+                    .rooms
+                    .insert(room_key, RoomStatus::Idle(Instant::now()));
             }
         }
     }

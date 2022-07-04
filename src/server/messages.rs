@@ -10,7 +10,7 @@ pub struct RoomProposal {
 
 pub enum ServerMessage {
     RoomProposal { proposal: RoomProposal },
-    RoomAffirmation { room_id: Option<[u8; 64]> },
+    RoomAffirmation { room_id: Option<[u8; 32]> },
 }
 
 pub enum SocketMessage {
