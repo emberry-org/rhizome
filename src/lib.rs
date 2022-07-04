@@ -6,17 +6,19 @@ mod server;
 mod settings;
 #[cfg(feature = "certgen")]
 pub use certs::regenerate_certs;
-use server::messages::SocketMessage;
+use rand::{thread_rng, RngCore};
+use rendezvous::RoomStatus;
+use server::messages::{ServerMessage, SocketMessage};
 use server::state::State;
 pub use settings::Args;
 
 use certs::{load_certs, load_private_key};
 use err::eprinterr_with;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{path::PathBuf, sync::Arc};
 use tokio::net::{TcpListener, UdpSocket};
-use tokio::select;
 use tokio::sync::mpsc;
+use tokio::{join, select};
 use tokio_rustls::{rustls, TlsAcceptor};
 
 pub const TIMEOUT: Duration = Duration::from_secs(10);
@@ -50,7 +52,7 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error + Send + Sy
                 rendezvous::handle(&udp, &mut state.rooms, &udp_buff, addr).await?; // Handle rendezvous service directly since updates to matchmap should be atomic
             }
             Some(msg) = rx.recv() => {
-                handle_sock_msg(msg, &mut state)
+                handle_sock_msg(msg, &mut state).await;
             }
         }
     }
@@ -92,7 +94,7 @@ async fn configure_tls(
     Ok((tcp, tls_acceptor))
 }
 
-fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
+async fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
     match msg {
         SocketMessage::SubscribeUser { user, tx } => {
             state.usrs.insert(user.key, tx);
@@ -104,6 +106,33 @@ fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
             let route = state.usrs.get(&receiver.key);
             if success.send(route.cloned()).is_err() {
                 eprintln!("RoomRequest response could not be sent user disconnected");
+            }
+        }
+        SocketMessage::GenerateRoom {
+            proposer,
+            recipient,
+        } => {
+            let mut room_key: [u8; 64] = [0u8; 64];
+
+            loop{
+                thread_rng().fill_bytes(&mut room_key);
+                if ! state.rooms.contains_key(&room_key) {
+                    break;
+                }
+            }
+
+            // Generate futures to send room key to users
+            let proposer_fut = proposer.send(ServerMessage::RoomAffirmation {
+                room_id: Some(room_key),
+            });
+            let recipient_fut = recipient.send(ServerMessage::RoomAffirmation {
+                room_id: Some(room_key),
+            });
+
+            let (recipient_result, proposer_result) = join!(recipient_fut, proposer_fut);
+        
+            if recipient_result.is_ok() || proposer_result.is_ok(){
+                state.rooms.insert(room_key, RoomStatus::Idle(Instant::now()));
             }
         }
     }

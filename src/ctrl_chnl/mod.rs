@@ -93,7 +93,7 @@ where
             Some(msg) = rx.recv() => {
                 match msg {
                     ServerMessage::RoomProposal{ proposal } => handle_room_proposal(state, proposal, tls).await?,
-                    ServerMessage::ProposalResponse { room_id } => todo!("handle proposal response"),
+                    ServerMessage::RoomAffirmation { room_id } => todo!("handle proposal response"),
                 }
             }
         }
@@ -114,14 +114,28 @@ where
     {
         proposal
             .proposer_tx
-            .send(ServerMessage::ProposalResponse { room_id: None })
+            .send(ServerMessage::RoomAffirmation { room_id: None })
             .await
             .unwrap_or(());
         return Err(err);
     }
+    
 
-    // send msg to tls await response and signal proposer about the result
-    todo!("ask UPC to generate room id and then forward that to proposer and tls client")
+    //todo!("send msg to tls await response and signal proposer about the result");
+
+    state
+        .com
+        .send(SocketMessage::GenerateRoom {
+            proposer: proposal.proposer_tx,
+            recipient: state.tx.clone(),
+        })
+        .await
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "Internal communication channel broken",
+            )
+        })
 }
 
 async fn handle_room_request<T>(
