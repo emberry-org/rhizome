@@ -93,7 +93,7 @@ where
             Some(msg) = rx.recv() => {
                 match msg {
                     ServerMessage::RoomProposal{ proposal } => handle_room_proposal(state, proposal, tls).await?,
-                    ServerMessage::RoomAffirmation { room_id } => todo!("handle proposal response"),
+                    ServerMessage::RoomAffirmation { room_id } => Response::AcceptedRoom(room_id).send_with(tls).await?,
                 }
             }
         }

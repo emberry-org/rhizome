@@ -10,6 +10,7 @@ pub enum Response {
     HasRoute(User),
     NoRoute(User),
     WantsRoom(User, Option<String>),
+    AcceptedRoom(Option<[u8; 64]>)
 }
 
 impl Response {
