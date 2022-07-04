@@ -88,6 +88,7 @@ where
                     Request::Heartbeat => continue,
                     Request::Shutdown => return Ok(()),
                     Request::Room(user) => handle_room_request(state, user, tls).await?,
+                    Request::Accept(_) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot handle accept as request"))
                 }
             }
             Some(msg) = rx.recv() => {
@@ -119,23 +120,46 @@ where
             .unwrap_or(());
         return Err(err);
     }
-    
 
-    //todo!("send msg to tls await response and signal proposer about the result");
+    let mut sizebuf = [0u8; 4];
+    tls.read_exact(&mut sizebuf).await?;
+    let size = u32::from_be_bytes(sizebuf);
+    let resp = recv_req(tls, size).await?;
 
-    state
-        .com
-        .send(SocketMessage::GenerateRoom {
-            proposer: proposal.proposer_tx,
-            recipient: state.tx.clone(),
-        })
-        .await
-        .map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                "Internal communication channel broken",
-            )
-        })
+    match resp {
+        Request::Accept(true) => state
+            .com
+            .send(SocketMessage::GenerateRoom {
+                proposer: proposal.proposer_tx,
+                recipient: state.tx.clone(),
+            })
+            .await
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    "Internal communication channel broken",
+                )
+            }),
+        Request::Accept(false) => {
+            proposal
+                .proposer_tx
+                .send(ServerMessage::RoomAffirmation { room_id: None })
+                .await
+                .unwrap_or(());
+            Ok(())
+        }
+        _ => {
+            proposal
+                .proposer_tx
+                .send(ServerMessage::RoomAffirmation { room_id: None })
+                .await
+                .unwrap_or(());
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot handle non accept as response to request",
+            ))
+        }
+    }
 }
 
 async fn handle_room_request<T>(
