@@ -19,6 +19,7 @@ use crate::server::user::User;
 use self::request::Request;
 use self::state::State;
 
+/// Handle an incoming connection.
 pub async fn handle(
     socket: (TcpStream, SocketAddr),
     acceptor: TlsAcceptor,
@@ -48,10 +49,9 @@ pub async fn handle(
             )
         })?;
 
-    // [!] From here on ensure the the function does not return before disconnect is not signaled to the server [!]
 
     // write result in status and avoid returning from the function this way
-    let status = handle_messges(&state, &mut tls, &mut rx).await;
+    let status = handle_messages(&state, &mut tls, &mut rx).await;
 
     // Remove the client from the map in case of disconnect
     state
@@ -69,7 +69,8 @@ pub async fn handle(
     status
 }
 
-async fn handle_messges<T>(
+/// Handle any incoming messages over the TLS.
+async fn handle_messages<T>(
     state: &State,
     tls: &mut BufReader<TlsStream<T>>,
     rx: &mut Receiver<ServerMessage>,
@@ -215,6 +216,9 @@ where
     }
 }
 
+/// Perform a handshake and send the client a hello message.
+/// 
+/// Hello message : ```rhizome v<CARGO_PKG_VERSION>\n```
 async fn rhizome_handshake<T>(
     stream: T,
     addr: &SocketAddr,
@@ -242,6 +246,7 @@ where
     Ok(BufReader::new(tls))
 }
 
+/// Authenticate a user by reading their public key from the TLS channel.
 async fn authenticate<T>(tls: &mut BufReader<TlsStream<T>>) -> io::Result<User>
 where
     T: AsyncRead + AsyncWrite + Unpin,

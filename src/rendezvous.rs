@@ -9,6 +9,16 @@ pub enum RoomStatus {
     Waiting(SocketAddr, Instant),
 }
 
+/// Handle an incoming connection and match them if there is a match inside the matchmap.
+/// # Errors
+/// [`InvalidData`](https://doc.rust-lang.org/std/io/enum.ErrorKind.html#variant.InvalidData)
+/// If the room matching the packet is closed.
+/// 
+/// [`TimedOut`](https://doc.rust-lang.org/std/io/enum.ErrorKind.html#variant.TimedOut)
+/// If the check timeout runs out. (10 Sec)
+/// 
+/// [`InvalidInput`](https://doc.rust-lang.org/std/io/enum.ErrorKind.html#variant.InvalidInput)
+/// If within the match one of the supplied addresses is ipv4 and the other is ipv6.
 pub async fn handle(
     socket: &UdpSocket,
     matchmap: &mut MatchMap,
@@ -67,6 +77,9 @@ pub async fn make_match(
     Ok(())
 }
 
+/// Send the info from a connection to another so they can holepunch.
+/// # Errors
+/// Returns any error produced by `socket.send_to(...)`
 async fn send_info(socket: &UdpSocket, to: SocketAddr, about: SocketAddr) -> Result<(), io::Error> {
     let mut ip_raw = match about {
         SocketAddr::V4(s) => s.ip().octets().to_vec(),
