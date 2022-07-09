@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_rustls::server::TlsStream;
 
@@ -7,23 +7,26 @@ use crate::server::user::User;
 use std::io::{self, ErrorKind};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum Response {
+pub enum RhizMessage {
     HasRoute(User),
     NoRoute(User),
-    WantsRoom(User, Option<String>),
-    AcceptedRoom(Option<[u8; 32]>)
+    WantsRoom(User),
+    AcceptedRoom(Option<[u8; 32]>),
+    ServerError(String),
 }
 
-impl Response {
+impl RhizMessage {
     pub async fn send_with<T>(self, tls: &mut BufReader<TlsStream<T>>) -> io::Result<()>
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
-        let mut buf = vec![];
-        todo!("packet serialization");
+        // use 192 byte buffer since we restrict wants room string to max 128 characters
+        let bytes = postcard::to_vec_cobs::<Self, 64>(&self)
+            .expect("there was a big oopsie during developement!
+            serialization size for RhizMessage was bigger then the specified buffer size");
 
         #[cfg(feature = "debug")]
         println!("sent msg");
-        tls.write_all(&buf).await
+        tls.write_all(&bytes).await
     }
 }

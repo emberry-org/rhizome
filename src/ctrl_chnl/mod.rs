@@ -2,11 +2,11 @@ mod request;
 mod response;
 mod state;
 
-use crate::ctrl_chnl::response::Response;
+use crate::ctrl_chnl::response::RhizMessage;
 use crate::server::messages::{self, RoomProposal, ServerMessage, SocketMessage};
 use std::io;
 use std::net::SocketAddr;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -16,7 +16,7 @@ use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 use crate::server::user::User;
 
-use self::request::Request;
+use self::request::EmbMessage;
 use self::state::State;
 
 /// Handle an incoming connection.
@@ -49,7 +49,6 @@ pub async fn handle(
             )
         })?;
 
-
     // write result in status and avoid returning from the function this way
     let status = handle_messages(&state, &mut tls, &mut rx).await;
 
@@ -78,24 +77,23 @@ async fn handle_messages<T>(
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    let mut buf = [0u8; 4]; // message header buffer
+    let mut recv_buf = Vec::with_capacity(request::EmbMessageBufSize);
 
     // Repeatedly handle requests
     loop {
         select! {
-            Ok(_) = tls.read_exact(&mut buf) => {
-                let size = u32::from_be_bytes(buf);
-                match timeout(crate::TIMEOUT, recv_req(tls, size)).await?? {
-                    Request::Heartbeat => continue,
-                    Request::Shutdown => return Ok(()),
-                    Request::Room(user) => handle_room_request(state, user, tls).await?,
-                    Request::Accept(_) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot handle accept as request"))
+            req = EmbMessage::recv_req(tls, &mut recv_buf) => {
+                match req? {
+                    EmbMessage::Heartbeat => continue,
+                    EmbMessage::Shutdown => return Ok(()),
+                    EmbMessage::Room(user) => handle_room_request(state, user, tls).await?,
+                    EmbMessage::Accept(_) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot handle accept as request"))
                 }
             }
             Some(msg) = rx.recv() => {
                 match msg {
-                    ServerMessage::RoomProposal { proposal } => handle_room_proposal(state, proposal, tls).await?,
-                    ServerMessage::RoomAffirmation { room_id } => Response::AcceptedRoom(room_id).send_with(tls).await?,
+                    ServerMessage::RoomProposal { proposal } => handle_room_proposal(state, proposal, tls, &mut recv_buf).await?,
+                    ServerMessage::RoomAffirmation { room_id } => RhizMessage::AcceptedRoom(room_id).send_with(tls).await?,
                 }
             }
         }
@@ -106,11 +104,12 @@ async fn handle_room_proposal<T>(
     state: &State,
     proposal: messages::RoomProposal,
     tls: &mut BufReader<TlsStream<T>>,
+    recv_buf: &mut request::EmbMessageBuf,
 ) -> io::Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    if let Err(err) = Response::WantsRoom(proposal.proposer, proposal.proposal)
+    if let Err(err) = RhizMessage::WantsRoom(proposal.proposer)
         .send_with(tls)
         .await
     {
@@ -122,13 +121,10 @@ where
         return Err(err);
     }
 
-    let mut sizebuf = [0u8; 4];
-    tls.read_exact(&mut sizebuf).await?;
-    let size = u32::from_be_bytes(sizebuf);
-    let resp = recv_req(tls, size).await?;
+    let resp = EmbMessage::recv_req(tls, recv_buf).await?;
 
     match resp {
-        Request::Accept(true) => state
+        EmbMessage::Accept(true) => state
             .com
             .send(SocketMessage::GenerateRoom {
                 proposer: proposal.proposer_tx,
@@ -141,7 +137,7 @@ where
                     "Internal communication channel broken",
                 )
             }),
-        Request::Accept(false) => {
+        EmbMessage::Accept(false) => {
             proposal
                 .proposer_tx
                 .send(ServerMessage::RoomAffirmation { room_id: None })
@@ -196,28 +192,27 @@ where
     })?;
 
     match route {
-        None => Response::NoRoute(user).send_with(tls).await,
+        None => RhizMessage::NoRoute(user).send_with(tls).await,
         Some(route) => {
             match route
                 .send(ServerMessage::RoomProposal {
                     proposal: RoomProposal {
                         proposer: state.user,
-                        proposal: None,
                         proposer_tx: state.tx.clone(),
                     },
                 })
                 .await
             {
-                Ok(()) => Response::HasRoute(user).send_with(tls).await,
+                Ok(()) => RhizMessage::HasRoute(user).send_with(tls).await,
                 // send no route if the receiver of the peer has been dropped by now (peer disconnected)
-                Err(_) => Response::NoRoute(user).send_with(tls).await,
+                Err(_) => RhizMessage::NoRoute(user).send_with(tls).await,
             }
         }
     }
 }
 
 /// Perform a handshake and send the client a hello message.
-/// 
+///
 /// Hello message : ```rhizome v<CARGO_PKG_VERSION>\n```
 async fn rhizome_handshake<T>(
     stream: T,
@@ -255,12 +250,4 @@ where
     tls.read_exact(&mut buf).await?;
 
     Ok(User { key: buf })
-}
-
-async fn recv_req<T>(tls: &mut BufReader<TlsStream<T>>, size: u32) -> io::Result<Request>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    // read the tls strea for <size> bytes and parse request
-    todo!()
 }

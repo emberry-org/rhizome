@@ -4,7 +4,6 @@ use crate::server::user::User;
 
 pub struct RoomProposal {
     pub proposer: User,
-    pub proposal: Option<String>,
     pub proposer_tx: Sender<ServerMessage>,
 }
 
