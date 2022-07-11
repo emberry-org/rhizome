@@ -13,8 +13,9 @@ tokio = { version = "1", features = ["rt", "net", "macros", "io-util", "sync", "
 rustls-pemfile = "1"
 rcgen = { version="0.9", optional = true }
 rand = "0.8"
-serde = {version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 postcard = "1"
+smoke = { version = "0", git = "https://github.com/emberry-org/smoke" }
 
 [features]
 certgen = ["dep:rcgen"]

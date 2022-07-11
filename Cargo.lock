@@ -487,6 +487,7 @@ dependencies = [
  "rcgen",
  "rustls-pemfile",
  "serde",
+ "smoke",
  "tokio",
  "tokio-rustls",
 ]
@@ -622,6 +623,11 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "smoke"
+version = "0.1.0"
+source = "git+https://github.com/emberry-org/smoke#27dd3b5300e9e368b58d7de7362a7cb648e98e9e"
 
 [[package]]
 name = "socket2"
