@@ -15,7 +15,10 @@ rcgen = { version="0.9", optional = true }
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 postcard = "1"
-smoke = { version = "0", git = "https://github.com/emberry-org/smoke" }
+smoke = { git = "https://github.com/emberry-org/smoke" }
+
+#[patch."https://github.com/emberry-org/smoke"]
+#smoke = { path = "../smoke" }
 
 [features]
 certgen = ["dep:rcgen"]

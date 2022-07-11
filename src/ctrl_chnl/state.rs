@@ -1,9 +1,7 @@
+use smoke::User;
 use tokio::sync::mpsc::Sender;
 
-use crate::server::{
-    messages::{ServerMessage, SocketMessage},
-    user::User,
-};
+use crate::server::messages::{ServerMessage, SocketMessage};
 
 pub struct State {
     /// Authenticated user for this instance

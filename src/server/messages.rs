@@ -1,6 +1,6 @@
 use tokio::sync::{mpsc::Sender, oneshot};
 
-use crate::server::user::User;
+use smoke::User;
 
 pub struct RoomProposal {
     pub proposer: User,
@@ -27,5 +27,5 @@ pub enum SocketMessage {
     GenerateRoom {
         proposer: Sender<ServerMessage>,
         recipient: Sender<ServerMessage>,
-    }
+    },
 }

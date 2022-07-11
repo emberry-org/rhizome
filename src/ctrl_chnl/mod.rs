@@ -1,9 +1,10 @@
-mod request;
-mod response;
 mod state;
 
-use crate::ctrl_chnl::response::RhizMessage;
+use self::state::State;
 use crate::server::messages::{self, RoomProposal, ServerMessage, SocketMessage};
+use smoke::messages as smokemsg;
+use smoke::messages::{EmbMessage, RhizMessage};
+use smoke::User;
 use std::io;
 use std::net::SocketAddr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -13,11 +14,6 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
-
-use crate::server::user::User;
-
-use self::request::EmbMessage;
-use self::state::State;
 
 /// Handle an incoming connection.
 pub async fn handle(
@@ -77,7 +73,7 @@ async fn handle_messages<T>(
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    let mut recv_buf = Vec::with_capacity(request::EMB_MESSAGE_BUF_SIZE);
+    let mut recv_buf = Vec::with_capacity(smokemsg::EMB_MESSAGE_BUF_SIZE);
 
     // Repeatedly handle requests
     loop {
@@ -104,7 +100,7 @@ async fn handle_room_proposal<T>(
     state: &State,
     proposal: messages::RoomProposal,
     tls: &mut BufReader<TlsStream<T>>,
-    recv_buf: &mut request::EmbMessageBuf,
+    recv_buf: &mut smokemsg::EmbMessageBuf,
 ) -> io::Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
