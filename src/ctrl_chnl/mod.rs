@@ -6,7 +6,7 @@ use crate::ctrl_chnl::response::RhizMessage;
 use crate::server::messages::{self, RoomProposal, ServerMessage, SocketMessage};
 use std::io;
 use std::net::SocketAddr;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -77,7 +77,7 @@ async fn handle_messages<T>(
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    let mut recv_buf = Vec::with_capacity(request::EmbMessageBufSize);
+    let mut recv_buf = Vec::with_capacity(request::EMB_MESSAGE_BUF_SIZE);
 
     // Repeatedly handle requests
     loop {

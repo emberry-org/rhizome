@@ -4,7 +4,7 @@ use tokio_rustls::server::TlsStream;
 
 use crate::server::user::User;
 
-use std::io::{self, ErrorKind};
+use std::io;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum RhizMessage {

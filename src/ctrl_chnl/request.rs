@@ -6,9 +6,8 @@ use tokio_rustls::server::TlsStream;
 
 use crate::server::user::User;
 
-use super::response::RhizMessage;
 
-pub const EmbMessageBufSize: usize = 64;
+pub const EMB_MESSAGE_BUF_SIZE: usize = 64;
 pub type EmbMessageBuf = Vec<u8>;
 
 #[derive(Serialize, Deserialize)]
