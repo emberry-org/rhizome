@@ -245,5 +245,7 @@ where
     let mut buf = [0u8; 32];
     tls.read_exact(&mut buf).await?;
 
+    println!("User authenticated: {:x?}", &buf);
+
     Ok(User { key: buf })
 }
