@@ -627,7 +627,7 @@ dependencies = [
 [[package]]
 name = "smoke"
 version = "0.1.1"
-source = "git+https://github.com/emberry-org/smoke#413bdbc082047c42712d128a68798613b9cb7697"
+source = "git+https://github.com/emberry-org/smoke#6512456ffa499a91b1631b9e28e4ab4db268dd7e"
 dependencies = [
  "postcard",
  "serde",

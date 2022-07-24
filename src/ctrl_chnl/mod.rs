@@ -89,7 +89,7 @@ where
             Some(msg) = rx.recv() => {
                 match msg {
                     ServerMessage::RoomProposal { proposal } => handle_room_proposal(state, proposal, tls, &mut recv_buf).await?,
-                    ServerMessage::RoomAffirmation { room_id } => RhizMessage::AcceptedRoom(room_id).send_with(tls).await?,
+                    ServerMessage::RoomAffirmation { room_id, usr } => RhizMessage::AcceptedRoom(room_id, usr).send_with(tls).await?,
                 }
             }
         }
@@ -100,7 +100,7 @@ async fn handle_room_proposal<T>(
     state: &State,
     proposal: messages::RoomProposal,
     tls: &mut BufReader<TlsStream<T>>,
-    recv_buf: &mut smokemsg::EmbMessageBuf,
+    recv_buf: &mut Vec<u8>,
 ) -> io::Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
@@ -111,7 +111,10 @@ where
     {
         proposal
             .proposer_tx
-            .send(ServerMessage::RoomAffirmation { room_id: None })
+            .send(ServerMessage::RoomAffirmation {
+                room_id: None,
+                usr: proposal.proposer,
+            })
             .await
             .unwrap_or(());
         return Err(err);
@@ -123,8 +126,10 @@ where
         EmbMessage::Accept(true) => state
             .com
             .send(SocketMessage::GenerateRoom {
-                proposer: proposal.proposer_tx,
-                recipient: state.tx.clone(),
+                proposer_tx: proposal.proposer_tx,
+                proposer: proposal.proposer,
+                recipient_tx: state.tx.clone(),
+                recipient: state.user,
             })
             .await
             .map_err(|_| {
@@ -136,7 +141,10 @@ where
         EmbMessage::Accept(false) => {
             proposal
                 .proposer_tx
-                .send(ServerMessage::RoomAffirmation { room_id: None })
+                .send(ServerMessage::RoomAffirmation {
+                    room_id: None,
+                    usr: proposal.proposer,
+                })
                 .await
                 .unwrap_or(());
             Ok(())
@@ -144,7 +152,10 @@ where
         _ => {
             proposal
                 .proposer_tx
-                .send(ServerMessage::RoomAffirmation { room_id: None })
+                .send(ServerMessage::RoomAffirmation {
+                    room_id: None,
+                    usr: proposal.proposer,
+                })
                 .await
                 .unwrap_or(());
             Err(io::Error::new(

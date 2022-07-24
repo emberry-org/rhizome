@@ -14,6 +14,7 @@ pub use settings::Args;
 
 use certs::{load_certs, load_private_key};
 use err::eprinterr_with;
+use smoke::messages::RoomId;
 use std::time::{Duration, Instant};
 use std::{path::PathBuf, sync::Arc};
 use tokio::net::{TcpListener, UdpSocket};
@@ -109,7 +110,9 @@ async fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
             }
         }
         SocketMessage::GenerateRoom {
+            proposer_tx,
             proposer,
+            recipient_tx,
             recipient,
         } => {
             let mut room_key = [0u8; 32];
@@ -122,11 +125,13 @@ async fn handle_sock_msg(msg: SocketMessage, state: &mut State) {
             }
 
             // Generate futures to send room key to users
-            let proposer_fut = proposer.send(ServerMessage::RoomAffirmation {
-                room_id: Some(room_key),
+            let proposer_fut = proposer_tx.send(ServerMessage::RoomAffirmation {
+                room_id: Some(RoomId(room_key)),
+                usr: recipient,
             });
-            let recipient_fut = recipient.send(ServerMessage::RoomAffirmation {
-                room_id: Some(room_key),
+            let recipient_fut = recipient_tx.send(ServerMessage::RoomAffirmation {
+                room_id: Some(RoomId(room_key)),
+                usr: proposer,
             });
 
             let (recipient_result, proposer_result) = join!(recipient_fut, proposer_fut);

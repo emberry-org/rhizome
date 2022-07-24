@@ -1,6 +1,6 @@
 use tokio::sync::{mpsc::Sender, oneshot};
 
-use smoke::User;
+use smoke::{User, messages::RoomId};
 
 pub struct RoomProposal {
     pub proposer: User,
@@ -9,7 +9,7 @@ pub struct RoomProposal {
 
 pub enum ServerMessage {
     RoomProposal { proposal: RoomProposal },
-    RoomAffirmation { room_id: Option<[u8; 32]> },
+    RoomAffirmation { room_id: Option<RoomId> , usr: User},
 }
 
 pub enum SocketMessage {
@@ -25,7 +25,9 @@ pub enum SocketMessage {
         user: User,
     },
     GenerateRoom {
-        proposer: Sender<ServerMessage>,
-        recipient: Sender<ServerMessage>,
+        proposer_tx: Sender<ServerMessage>,
+        proposer: User,
+        recipient_tx: Sender<ServerMessage>,
+        recipient: User,
     },
 }
